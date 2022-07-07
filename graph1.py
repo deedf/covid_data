@@ -6,7 +6,7 @@ import logging
 from collections import namedtuple
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import requests
@@ -30,6 +30,13 @@ PACKAGE_URL = (
 
 START_DATE = date(2021, 3, 23)
 END_DATE = date(2022, 4, 5)
+DEATH_COLOR = ((0.1, 0.2, 0.4),)
+HOSP_COLOR = (0.1, 0.2, 0.8)
+SYMPTOM_COLOR = (0.1, 0.8, 0.2)
+DEATH_UNKNOWN_COLOR = (0.5, 0.5, 0.5)
+HOSP_UNKNOWN_COLOR = (0.6, 0.6, 0.6)
+SYMPTOM_UNKNOWN_COLOR = (0.7, 0.7, 0.7)
+
 AGE_BAR_DICT = {
     "0 - 9": (0, 9),
     "10 - 19": (10, 19),
@@ -112,46 +119,74 @@ def _build_graph(
     for age in counts.death.keys():
         death_count: int = counts.death[age]
         (y_1, y_2) = AGE_BAR_DICT[age]
-        # years are 0-based so add 1 for height
-        height: int = y_2 - y_1 + 1
+        height: int = y_2 - y_1
         d_width = death_count / height
-        plot.barh(
-            y=y_1,
-            width=-d_width,
-            left=0,
-            height=height,
-            align="edge",
-            color=(0.1, 0.2, 0.5),
-            linewidth=0,
-        )
+        if death_count > 0:
+            plot.barh(
+                y=y_1,
+                width=-d_width,
+                left=0,
+                height=height,
+                align="edge",
+                color=HOSP_UNKNOWN_COLOR if age == "Unbekannt" else DEATH_COLOR,
+                edgecolor=(0, 0, 0),
+                linewidth=1,
+            )
         hosp_count: int = counts.hosp[age]
-        (y_1, y_2) = AGE_BAR_DICT[age]
-        # years are 0-based so add 1 for height
-        height = y_2 - y_1 + 1
-        plot.barh(
-            y=y_1,
-            width=-hosp_count / height,
-            left=-d_width,
-            height=height,
-            align="edge",
-            color=(0.1, 0.2, 0.8),
-            linewidth=0,
-        )
+        if hosp_count > 0:
+            (y_1, y_2) = AGE_BAR_DICT[age]
+            height = y_2 - y_1
+            b = plot.barh(
+                y=y_1,
+                width=-hosp_count / height,
+                left=-d_width,
+                height=height,
+                align="edge",
+                color=DEATH_UNKNOWN_COLOR if age == "Unbekannt" else HOSP_COLOR,
+                edgecolor=(0, 0, 0),
+                linewidth=1,
+            )
+            plot.bar_label(b, labels=[f" {hosp_count + death_count} "])
     for age in counts.symptoms.keys():
         count: int = counts.symptoms[age]
-        (y_1, y_2) = AGE_BAR_DICT[age]
-        # years are 0-based so add 1 for height
-        height = y_2 - y_1 + 1
-        plot.barh(
-            y=y_1,
-            width=count / height,
-            left=0,
-            height=height,
-            align="edge",
-            color=(0.1, 0.2, 0.7),
-            linewidth=0,
+        if count > 0:
+            (y_1, y_2) = AGE_BAR_DICT[age]
+            height = y_2 - y_1
+            b = plot.barh(
+                y=y_1,
+                width=count / height,
+                left=10,
+                height=height,
+                align="edge",
+                color=SYMPTOM_UNKNOWN_COLOR if age == "unknown" else SYMPTOM_COLOR,
+                edgecolor=(0, 0, 0),
+                linewidth=1,
+            )
+            plot.bar_label(b, labels=[f" {count}"])
+    plot.xaxis.set_visible(False)
+    plot.set_ylabel("Age")
+    legends: List[Tuple[Tuple, str]] = [
+        (HOSP_COLOR, " COVID hospitalizations."),
+        (DEATH_COLOR, " COVID deaths."),
+        (SYMPTOM_COLOR, " Reported vaccine adverse effects."),
+    ]
+    if counts.death["Unbekannt"] > 0:
+        legends.append((DEATH_UNKNOWN_COLOR, " Death with unknown age."))
+    if counts.hosp["Unbekannt"] > 0:
+        legends.append((HOSP_UNKNOWN_COLOR, " Hospitalization with unknown age."))
+    if counts.symptoms["unknown"] > 0:
+        legends.append((SYMPTOM_UNKNOWN_COLOR, " Adverse effects with unknown age."))
+    y = 20
+    for color, text in legends:
+        b = plot.barh(
+            y=y, width=100, height = 10, left=-1000, color=color, edgecolor=(0, 0, 0), linewidth=1
         )
-
+        plot.bar_label(b, labels=[text])
+        y-=11
+    plt.margins(0.1, 0.1)
+    plot.spines["top"].set_visible(False)
+    plot.spines["right"].set_visible(False)
+    plot.spines["bottom"].set_visible(False)
     plt.show()
 
 
