@@ -7,8 +7,10 @@ from collections import namedtuple
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from datetime import datetime
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 import requests
 from cachecontrol import CacheControl
 from cachecontrol.caches import FileCache
@@ -24,18 +26,21 @@ try:
 except Exception as e:  # pylint: disable=broad-except
     logger.debug(e)
 
+PACKAGE_NAME="covid-19-schweiz"
+
 PACKAGE_URL = (
-    "https://ckan.opendata.swiss/api/3/action/package_show?id=covid-19-schweiz"
+    f"https://ckan.opendata.swiss/api/3/action/package_show"
 )
 
 START_DATE = date(2021, 3, 23)
 END_DATE = date(2022, 4, 5)
-DEATH_COLOR = ((0.1, 0.2, 0.4),)
+DEATH_COLOR = (0.1, 0.2, 0.4)
 HOSP_COLOR = (0.1, 0.2, 0.8)
 SYMPTOM_COLOR = (0.1, 0.8, 0.2)
 DEATH_UNKNOWN_COLOR = (0.5, 0.5, 0.5)
 HOSP_UNKNOWN_COLOR = (0.6, 0.6, 0.6)
 SYMPTOM_UNKNOWN_COLOR = (0.7, 0.7, 0.7)
+TRANSPARENT_COLOR = (0,0,0,0)
 
 AGE_BAR_DICT = {
     "0 - 9": (0, 9),
@@ -60,8 +65,8 @@ AGE_BAR_DICT = {
 CovidData = namedtuple("CovidData", ["hosp", "death", "symptoms"])
 
 
-def _get_packages(url: str) -> Dict[str, Any]:
-    result = cached_sess.get(url)
+def _get_package(id: str) -> Dict[str, Any]:
+    result = cached_sess.get(PACKAGE_URL,params={'id':id})
     result.raise_for_status()
     return result.json()["result"]
 
@@ -115,7 +120,8 @@ def _build_graph(
         _diff(start.symptoms, end.symptoms),
     )
     plt.rcdefaults()
-    _, plot = plt.subplots()
+    fig, plot = plt.subplots()
+    fig.suptitle(f"COVID / Vaccine comparison by age, {START_DATE} - {END_DATE}")
     for age in counts.death.keys():
         death_count: int = counts.death[age]
         (y_1, y_2) = AGE_BAR_DICT[age]
@@ -146,7 +152,7 @@ def _build_graph(
                 edgecolor=(0, 0, 0),
                 linewidth=1,
             )
-            plot.bar_label(b, labels=[f" {hosp_count + death_count} "])
+            plot.bar_label(b, labels=[f"   {hosp_count + death_count} "])
     for age in counts.symptoms.keys():
         count: int = counts.symptoms[age]
         if count > 0:
@@ -165,24 +171,28 @@ def _build_graph(
             plot.bar_label(b, labels=[f" {count}"])
     plot.xaxis.set_visible(False)
     plot.set_ylabel("Age")
+    plot.set_yticks([0, 20, 40, 60, 80])
     legends: List[Tuple[Tuple, str]] = [
-        (HOSP_COLOR, " COVID hospitalizations."),
-        (DEATH_COLOR, " COVID deaths."),
-        (SYMPTOM_COLOR, " Reported vaccine adverse effects."),
+        (HOSP_COLOR, f"COVID hospitalizations ({hosp['display_name']['en']})."),
+        (DEATH_COLOR, f"COVID deaths ({death['display_name']['en']})."),
+        (SYMPTOM_COLOR, f"Reported vaccine adverse effects ({symptoms['display_name']['en']})."),
     ]
     if counts.death["Unbekannt"] > 0:
-        legends.append((DEATH_UNKNOWN_COLOR, " Death with unknown age."))
+        legends.append((DEATH_UNKNOWN_COLOR, "Death with unknown age."))
     if counts.hosp["Unbekannt"] > 0:
-        legends.append((HOSP_UNKNOWN_COLOR, " Hospitalization with unknown age."))
+        legends.append((HOSP_UNKNOWN_COLOR, "Hospitalization with unknown age."))
     if counts.symptoms["unknown"] > 0:
-        legends.append((SYMPTOM_UNKNOWN_COLOR, " Adverse effects with unknown age."))
-    y = 20
-    for color, text in legends:
-        b = plot.barh(
-            y=y, width=100, height = 10, left=-1000, color=color, edgecolor=(0, 0, 0), linewidth=1
-        )
-        plot.bar_label(b, labels=[text])
-        y-=11
+        legends.append((SYMPTOM_UNKNOWN_COLOR, "Adverse effects with unknown age."))
+    legends.append((TRANSPARENT_COLOR,f"Source: opendata.swiss , package '{PACKAGE_NAME}'"))
+    legends.append((TRANSPARENT_COLOR,f"Data for CH + FL"))
+    legends.append((TRANSPARENT_COLOR,f"Generated on {datetime.now().strftime('%Y-%m-%d')}"))
+
+    fig.legend(
+        [Rectangle(xy=(0, 0), width=10, height=10, color=l[0]) for l in legends],
+        [l[1] for l in legends],
+        loc="lower center",
+        fontsize="small"
+    )
     plt.margins(0.1, 0.1)
     plot.spines["top"].set_visible(False)
     plot.spines["right"].set_visible(False)
@@ -191,7 +201,7 @@ def _build_graph(
 
 
 def _main() -> None:
-    packages = _get_packages(PACKAGE_URL)
+    packages = _get_package(PACKAGE_NAME)
     resources_json: List[Dict[str, Any]] = packages["resources"]
     resources_dict: Dict[str, Dict[str, Any]] = dict(
         [(r["identifier"], r) for r in resources_json]
