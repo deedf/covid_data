@@ -140,7 +140,8 @@ def _build_graph(
     for age in counts.symptoms.keys():
         count: int = counts.symptoms[age]
         (y_1, y_2) = AGE_BAR_DICT[age]
-        height = y_2 - y_1
+        # years are 0-based so add 1 for height
+        height = y_2 - y_1 + 1
         plot.barh(
             y=y_1,
             width=count / height,
