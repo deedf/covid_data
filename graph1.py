@@ -183,8 +183,9 @@ def _build_graph(
         legends.append((HOSP_UNKNOWN_COLOR, "Hospitalization with unknown age."))
     if counts.symptoms["unknown"] > 0:
         legends.append((SYMPTOM_UNKNOWN_COLOR, "Adverse effects with unknown age."))
-    legends.append((TRANSPARENT_COLOR,f"Source: opendata.swiss , package '{PACKAGE_NAME}'"))
+    legends.append((TRANSPARENT_COLOR,f"Data Source: opendata.swiss , package '{PACKAGE_NAME}'"))
     legends.append((TRANSPARENT_COLOR,f"Data for CH + FL"))
+    legends.append((TRANSPARENT_COLOR,f"Code Source: https://github.com/deedf/covid_data"))
     legends.append((TRANSPARENT_COLOR,f"Generated on {datetime.now().strftime('%Y-%m-%d')}"))
 
     fig.legend(
